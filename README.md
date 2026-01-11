@@ -63,6 +63,28 @@ The API expects a JSON array of media objects.
 ]
 ```
 
+**Response Structure:**
+
+The API returns a JSON object summarizing the synchronization results:
+
+```json
+{
+  "success": true,
+  "message": "Import completed successfully.",
+  "results": {
+    "created": ["ext-101", ...],
+    "updated": ["ext-205", ...],
+    "deleted": ["ext-099", ...],
+    "unchanged": ["ext-300", ...]
+  }
+}
+```
+
+- `created`: List of new External IDs successfully imported.
+- `updated`: List of existing External IDs that were updated (title, URLs, or metadata changed).
+- `deleted`: List of External IDs that were removed from WordPress because they were missing from the feed.
+- `unchanged`: List of existing External IDs that were present in the feed but required no updates (idempotent).
+
 **Field Descriptions:**
 
 | Field | Type | Required | Description |

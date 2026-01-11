@@ -48,7 +48,7 @@ class External_Media_API_Handler
         register_shutdown_function(array($this, 'disable_maintenance_mode'));
 
         try {
-            $this->process_import($params);
+            $results = $this->process_import($params);
         } catch (Exception $e) {
             // Maintenance mode will be disabled by shutdown function
             return new WP_Error('import_failed', $e->getMessage(), array('status' => 500));
@@ -60,6 +60,7 @@ class External_Media_API_Handler
         return rest_ensure_response(array(
             'success' => true,
             'message' => 'Import completed successfully.',
+            'results' => $results,
         ));
     }
 
@@ -69,6 +70,13 @@ class External_Media_API_Handler
         $existing_media = $this->get_existing_external_media();
         $processed_ids = array();
 
+        $results = array(
+            'created' => array(),
+            'updated' => array(),
+            'deleted' => array(),
+            'unchanged' => array(),
+        );
+
         foreach ($data as $item) {
             if (empty($item['id']) || empty($item['urls'])) {
                 continue;
@@ -77,12 +85,8 @@ class External_Media_API_Handler
             $external_id = (string) $item['id'];
             $processed_ids[] = $external_id;
 
-            $post_data = array(
-                'post_title' => isset($item['title']) ? $item['title'] : 'External Media ' . $external_id,
-                'post_mime_type' => isset($item['mime_type']) ? $item['mime_type'] : 'application/octet-stream',
-                'post_status' => 'inherit',
-                'post_type' => 'attachment',
-            );
+            $post_title = isset($item['title']) ? $item['title'] : 'External Media ' . $external_id;
+            $mime_type = isset($item['mime_type']) ? $item['mime_type'] : 'application/octet-stream';
 
             $meta_input = array(
                 '_is_external_media' => '1',
@@ -92,21 +96,40 @@ class External_Media_API_Handler
             );
 
             if (isset($existing_media[$external_id])) {
-                // Update existing
+                // Check if update is needed
                 $post_id = $existing_media[$external_id];
-                $post_data['ID'] = $post_id;
-                wp_update_post($post_data);
 
-                foreach ($meta_input as $key => $value) {
-                    update_post_meta($post_id, $key, $value);
+                if ($this->has_changes($post_id, $post_title, $meta_input)) {
+                    // Update existing
+                    $post_data = array(
+                        'ID' => $post_id,
+                        'post_title' => $post_title,
+                        'post_mime_type' => $mime_type,
+                    );
+                    wp_update_post($post_data);
+
+                    foreach ($meta_input as $key => $value) {
+                        update_post_meta($post_id, $key, $value);
+                    }
+                    $results['updated'][] = $external_id;
+                } else {
+                    $results['unchanged'][] = $external_id;
                 }
             } else {
                 // Create new
+                $post_data = array(
+                    'post_title' => $post_title,
+                    'post_mime_type' => $mime_type,
+                    'post_status' => 'inherit',
+                    'post_type' => 'attachment',
+                );
+
                 $post_id = wp_insert_post($post_data);
                 if (!is_wp_error($post_id)) {
                     foreach ($meta_input as $key => $value) {
                         update_post_meta($post_id, $key, $value);
                     }
+                    $results['created'][] = $external_id;
                 }
             }
         }
@@ -118,8 +141,35 @@ class External_Media_API_Handler
         foreach ($orphaned_ids as $external_id) {
             if (isset($existing_media[$external_id])) {
                 wp_delete_post($existing_media[$external_id], true);
+                $results['deleted'][] = $external_id;
             }
         }
+
+        return $results;
+    }
+
+    private function has_changes($post_id, $new_title, $new_meta)
+    {
+        // Check Title
+        $current_post = get_post($post_id);
+        if ($current_post->post_title !== $new_title) {
+            return true;
+        }
+
+        // Check Meta
+        foreach ($new_meta as $key => $value) {
+            if ($key === '_is_external_media' || $key === '_external_id') {
+                continue; // These strictly match by definition of finding the post
+            }
+            $current_value = get_post_meta($post_id, $key, true);
+
+            // Normalize for comparison (strict check usually works for assoc arrays in PHP if order matches)
+            if ($current_value !== $value) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function get_existing_external_media()

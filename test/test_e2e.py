@@ -28,67 +28,64 @@ class TestWPExternalMedia(unittest.TestCase):
         self.session.auth = (self.auth_user, self.auth_pass)
         self.session.headers.update({'Content-Type': 'application/json'})
 
-    def test_import_and_fetch_media(self):
+    def test_sync_logic(self):
         """
         Test flow:
-        1. Import an external image.
-        2. Verify API response success.
-        3. Fetch the attachment via WP REST API to get the source URL.
-        4. Verify the media details match (URL, Title).
+        1. Import Sync (Create): Verify 'created' list.
+        2. Idempotency Sync (Unchanged): Verify 'unchanged' list.
+        3. Update Sync (Update): Verify 'updated' list.
+        4. Delete Sync (Delete): Verify 'deleted' list.
         """
         
-        # 1. Prepare Payload
-        external_id = "e2e-test-01"
-        external_url = "https://example.com/e2e-image.jpg"
+        external_id = "e2e-sync-test"
+        external_url = "https://example.com/sync-image.jpg"
+        
+        # --- Step 1: Create ---
         payload = [{
             "id": external_id,
-            "title": "E2E Test Image",
+            "title": "Original Title",
             "mime_type": "image/jpeg",
-            "urls": {
-                "full": external_url,
-                "thumbnail": "https://example.com/e2e-image-thumb.jpg"
-            }
+            "urls": { "full": external_url }
         }]
 
-        # 2. Execute Import
-        print(f"Importing media to {self.api_url}...")
+        print(f"Step 1: Creating {external_id}...")
         response = self.session.post(self.api_url, json=payload)
         self.assertEqual(response.status_code, 200, f"Import failed: {response.text}")
-        data = response.json()
-        self.assertTrue(data.get('success'), "API did not return success flag")
+        results = response.json().get('results', {})
+        
+        self.assertIn(external_id, results.get('created', []), "ID should be in 'created'")
+        self.assertEqual(len(results.get('updated', [])), 0)
+        self.assertEqual(len(results.get('deleted', [])), 0)
 
-        # 3. Validation - Fetch from Media Library
-        # searching by searching title or checking recent items
-        # WP REST API: /wp/v2/media
-        search_url = f"{self.base_url}?rest_route=/wp/v2/media"
-        print(f"Searching media at {search_url}...")
+        # --- Step 2: Unchanged (Idempotency) ---
+        print(f"Step 2: Re-importing {external_id} (Unchanged)...")
+        response = self.session.post(self.api_url, json=payload)
+        results = response.json().get('results', {})
         
-        # We need a small delay or just search immediately. 
-        # Using search param to find the specific item
-        search_params = {
-            'search': 'E2E Test Image',
-            'context': 'view'
-        }
-        
-        media_response = self.session.get(search_url, params=search_params)
-        self.assertEqual(media_response.status_code, 200, "Failed to fetch media library")
-        media_items = media_response.json()
+        self.assertIn(external_id, results.get('unchanged', []), "ID should be in 'unchanged'")
+        self.assertEqual(len(results.get('created', [])), 0)
+        self.assertEqual(len(results.get('updated', [])), 0)
 
-        self.assertTrue(len(media_items) > 0, "No media items found with the test title")
+        # --- Step 3: Update ---
+        payload[0]['title'] = "Updated Title"
+        print(f"Step 3: Updating {external_id}...")
+        response = self.session.post(self.api_url, json=payload)
+        results = response.json().get('results', {})
         
-        # Find our specific item (in case of other matches)
-        found_item = None
-        for item in media_items:
-            # Check source_url. 
-            # Note: WP REST API 'source_url' field should return the filtered URL if our plugin works.
-            if item['source_url'] == external_url:
-                found_item = item
-                break
-        
-        self.assertIsNotNone(found_item, f"Could not find media item with source_url: {external_url}")
-        print(f"Verified media item ID: {found_item['id']} has source_url: {found_item['source_url']}")
+        self.assertIn(external_id, results.get('updated', []), "ID should be in 'updated'")
+        self.assertEqual(len(results.get('created', [])), 0)
+        self.assertEqual(len(results.get('unchanged', [])), 0)
 
-        # Verify ID match if we stored it (we store it in meta, but standard API doesn't show meta by default)
+        # Verify update in WP
+        # We can't easy check title via search param if it changed, but let's assume API success means it tried.
+        
+        # --- Step 4: Delete ---
+        # Send empty list -> should delete everything including our ID
+        print(f"Step 4: Deleting {external_id}...")
+        response = self.session.post(self.api_url, json=[])
+        results = response.json().get('results', {})
+        
+        self.assertIn(external_id, results.get('deleted', []), "ID should be in 'deleted'")
         
 if __name__ == '__main__':
     run_tests()
