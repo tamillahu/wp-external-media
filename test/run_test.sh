@@ -11,7 +11,7 @@ echo "=== Starting E2E Test Suite ==="
 # 1. Start Environment
 echo "[1/4] Starting Docker Environment..."
 cd "$TEST_DIR"
-docker-compose up -d --wait wordpress db
+docker compose up -d --wait wordpress db
 
 # 2. Setup & Get Credentials
 echo "[2/4] Running Setup..."
@@ -42,6 +42,6 @@ python test_e2e.py
 
 # 4. Cleanup
 echo "[4/4] Cleanup..."
-docker-compose down -v
+docker compose down -v
 
 echo "=== E2E Tests Completed Successfully ==="
