@@ -1,0 +1,5 @@
+*.zip
+
+# Test
+test/test-reports
+test/venv
