@@ -104,3 +104,34 @@ The import process acts as a full synchronization of the external media state:
 3.  **Delete**: Any previously imported external media items that are **missing** from the current feed will be **permanently deleted** from WordPress.
 
 > **Warning**: Ensure your feed is complete. Omitted items will be removed.
+
+### 6. Retrieve Registered Image Sizes
+
+**Endpoint:** `GET /wp-json/external-media/v1/image-sizes`
+
+**Headers:**
+- `Authorization: Basic <base64_encoded_credentials>` (User:Password)
+
+**Response Structure:**
+
+Returns a JSON object where keys are image size names (e.g., `thumbnail`, `medium`) and values describe dimensions and cropping.
+
+```json
+{
+  "thumbnail": {
+    "width": 150,
+    "height": 150,
+    "crop": true
+  },
+  "medium": {
+    "width": 300,
+    "height": 300,
+    "crop": false
+  },
+  "large": {
+    "width": 1024,
+    "height": 1024,
+    "crop": false
+  }
+}
+```

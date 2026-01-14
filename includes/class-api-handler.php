@@ -28,6 +28,18 @@ class External_Media_API_Handler
                 },
             )
         );
+
+        register_rest_route(
+            'external-media/v1',
+            '/image-sizes',
+            array(
+                'methods' => 'GET',
+                'callback' => array($this, 'get_registered_image_sizes'),
+                'permission_callback' => function () {
+                    return current_user_can('manage_options');
+                },
+            )
+        );
     }
 
     public function handle_import($request)
@@ -207,5 +219,31 @@ class External_Media_API_Handler
         if (file_exists($maintenance_file)) {
             unlink($maintenance_file);
         }
+    }
+
+    public function get_registered_image_sizes()
+    {
+        global $_wp_additional_image_sizes;
+        $sizes = array();
+
+        // Get standard WP sizes (thumbnail, medium, large)
+        foreach (get_intermediate_image_sizes() as $_size) {
+            if (in_array($_size, array('thumbnail', 'medium', 'medium_large', 'large'))) {
+                $sizes[$_size] = array(
+                    'width' => get_option("{$_size}_size_w"),
+                    'height' => get_option("{$_size}_size_h"),
+                    'crop' => (bool) get_option("{$_size}_crop"),
+                );
+            } elseif (isset($_wp_additional_image_sizes[$_size])) {
+                // Get sizes registered by plugins (WooCommerce, Swatches, etc.)
+                $sizes[$_size] = array(
+                    'width' => $_wp_additional_image_sizes[$_size]['width'],
+                    'height' => $_wp_additional_image_sizes[$_size]['height'],
+                    'crop' => $_wp_additional_image_sizes[$_size]['crop'],
+                );
+            }
+        }
+
+        return $sizes;
     }
 }

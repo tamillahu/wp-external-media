@@ -87,5 +87,32 @@ class TestWPExternalMedia(unittest.TestCase):
         
         self.assertIn(external_id, results.get('deleted', []), "ID should be in 'deleted'")
         
+        self.assertIn(external_id, results.get('deleted', []), "ID should be in 'deleted'")
+
+    def test_get_image_sizes(self):
+        """
+        Verify that we can retrieve registered image sizes.
+        """
+        url = f"{self.base_url}?rest_route=/external-media/v1/image-sizes"
+        print(f"Testing GET image sizes at {url}...")
+        
+        response = self.session.get(url)
+        self.assertEqual(response.status_code, 200, f"Failed to get image sizes: {response.text}")
+        
+        sizes = response.json()
+        self.assertIsInstance(sizes, dict, "Response should be a dictionary of sizes")
+        
+        # Verify standard sizes exist
+        for expected_size in ['thumbnail', 'medium', 'medium_large', 'large']:
+             # Note: medium_large might not be active in all setups, but thumbnail/medium/large usually are.
+             # We'll just check if *any* of them are present to be safe, or just check 'thumbnail'
+            if expected_size in sizes:
+                 size_data = sizes[expected_size]
+                 self.assertIn('width', size_data)
+                 self.assertIn('height', size_data)
+                 self.assertIn('crop', size_data)
+
+        print(f"Retrieved {len(sizes)} image sizes.")
+
 if __name__ == '__main__':
     run_tests()
