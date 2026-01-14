@@ -91,21 +91,22 @@ class TestWPExternalMedia(unittest.TestCase):
 
     def test_get_image_sizes(self):
         """
-        Verify that we can retrieve registered image sizes.
+        Verify that we can retrieve registered image sizes publicly (no auth).
         """
         url = f"{self.base_url}?rest_route=/external-media/v1/image-sizes"
-        print(f"Testing GET image sizes at {url}...")
+        print(f"Testing GET image sizes (public) at {url}...")
         
-        response = self.session.get(url)
-        self.assertEqual(response.status_code, 200, f"Failed to get image sizes: {response.text}")
+        # Use a fresh, unauthenticated requests session
+        public_session = requests.Session()
+        
+        response = public_session.get(url)
+        self.assertEqual(response.status_code, 200, f"Failed to get image sizes publically: {response.text}")
         
         sizes = response.json()
         self.assertIsInstance(sizes, dict, "Response should be a dictionary of sizes")
         
         # Verify standard sizes exist
         for expected_size in ['thumbnail', 'medium', 'medium_large', 'large']:
-             # Note: medium_large might not be active in all setups, but thumbnail/medium/large usually are.
-             # We'll just check if *any* of them are present to be safe, or just check 'thumbnail'
             if expected_size in sizes:
                  size_data = sizes[expected_size]
                  self.assertIn('width', size_data)

@@ -35,9 +35,7 @@ class External_Media_API_Handler
             array(
                 'methods' => 'GET',
                 'callback' => array($this, 'get_registered_image_sizes'),
-                'permission_callback' => function () {
-                    return current_user_can('manage_options');
-                },
+                'permission_callback' => '__return_true',
             )
         );
     }
