@@ -98,11 +98,16 @@ class External_Media_API_Handler
             $post_title = isset($item['title']) ? $item['title'] : 'External Media ' . $external_id;
             $mime_type = isset($item['mime_type']) ? $item['mime_type'] : 'application/octet-stream';
 
+            // Use the first url as the filename
+            $source_url_for_filename = reset($item['urls']);
+            $attached_file = basename(parse_url($source_url_for_filename, PHP_URL_PATH));
+
             $meta_input = array(
                 '_is_external_media' => '1',
                 '_external_id' => $external_id,
                 '_external_urls' => $item['urls'], // Associative array of sizes
-                '_external_metadata' => isset($item['metadata']) ? $item['metadata'] : array(),
+                '_wp_attachment_metadata' => isset($item['metadata']) ? $item['metadata'] : array(),
+                '_wp_attached_file' => $attached_file,
             );
 
             if (isset($existing_media[$external_id])) {

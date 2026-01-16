@@ -115,5 +115,6 @@ class TestWPExternalMedia(unittest.TestCase):
 
         print(f"Retrieved {len(sizes)} image sizes.")
 
+
 if __name__ == '__main__':
     run_tests()

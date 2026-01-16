@@ -56,8 +56,23 @@ The API expects a JSON array of media objects.
       "thumbnail": "https://cdn.example.com/images/sunset-thumb.jpg"
     },
     "metadata": {
-      "author": "Jane Doe",
-      "location": "Alps"
+      "width": 1920,
+      "height": 1080,
+      "file": "sunset-full.jpg",
+      "sizes": {
+        "medium": {
+          "file": "sunset-medium.jpg",
+          "width": 300,
+          "height": 169,
+          "mime-type": "image/jpeg"
+        },
+        "thumbnail": {
+          "file": "sunset-thumb.jpg",
+          "width": 150,
+          "height": 150,
+          "mime-type": "image/jpeg"
+        }
+      }
     }
   }
 ]
@@ -90,10 +105,10 @@ The API returns a JSON object summarizing the synchronization results:
 | Field | Type | Required | Description |
 | :--- | :--- | :--- | :--- |
 | `id` | String | **Yes** | Unique identifier from the external system. Used for sync and deduplication. |
-| `urls` | Object | **Yes** | Key-value pairs of size names and URLs. Must contain at least one URL. Standard WP keys: `full`, `large`, `medium`, `thumbnail`. |
+| `urls` | Object | **Yes** | Key-value pairs of size names and URLs. **The first URL in this object is expected to be the highest resolution (original) version**, as it is used to determine the filename. Standard WP keys: `full`, `large`, `medium`, `thumbnail`. |
 | `title` | String | No | The title of the attachment in WordPress. Defaults to "External Media [ID]". |
 | `mime_type` | String | No | MIME type of the file. Defaults to `application/octet-stream`. |
-| `metadata` | Object | No | Arbitrary metadata to store in `_external_metadata` for custom use. |
+| `metadata` | Object | No | Standard WordPress attachment metadata (width, height, sizes, etc.). Stored in `_wp_attachment_metadata` to allow plugins to recognize available sizes. |
 
 ### 5. Synchronization Logic
 

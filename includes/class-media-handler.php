@@ -43,30 +43,46 @@ class External_Media_Handler
     {
         if ($this->is_external_media($attachment_id)) {
             $external_urls = get_post_meta($attachment_id, '_external_urls', true);
-
+            $metadata = get_post_meta($attachment_id, '_wp_attachment_metadata', true);
             if (empty($external_urls) || !is_array($external_urls)) {
                 return $image;
             }
-
             $target_url = '';
+            $width = 0;
+            $height = 0;
+            // Handle string size (e.g. 'full', 'large')
+            if (!is_array($size)) {
+                // Try to find exact match
+                if (isset($external_urls[$size])) {
+                    $target_url = $external_urls[$size];
 
-            // Handle size mapping
-            // WP sizes: thumbnail, medium, medium_large, large, full
-            // External keys assumed to match or close enough
-            if (is_array($size)) {
-                // Custom size array provided, map to closest standard or just use full
-                $target_url = isset($external_urls['full']) ? $external_urls['full'] : reset($external_urls);
-            } elseif (isset($external_urls[$size])) {
-                $target_url = $external_urls[$size];
-            } else {
-                // Fallback to full if specific size not found
-                $target_url = isset($external_urls['full']) ? $external_urls['full'] : reset($external_urls);
+                    // Get dimensions
+                    if ($size === 'full') {
+                        $width = isset($metadata['width']) ? $metadata['width'] : 0;
+                        $height = isset($metadata['height']) ? $metadata['height'] : 0;
+                    } elseif (isset($metadata['sizes'][$size])) {
+                        $width = isset($metadata['sizes'][$size]['width']) ? $metadata['sizes'][$size]['width'] : 0;
+                        $height = isset($metadata['sizes'][$size]['height']) ? $metadata['sizes'][$size]['height'] : 0;
+                    }
+                } else {
+                    // Fallback to large or full if missing
+                    // Also check if 'full' maps to implicit original
+                    if ($size === 'full' && isset($external_urls['full'])) {
+                        $target_url = $external_urls['full'];
+                        $width = isset($metadata['width']) ? $metadata['width'] : 0;
+                        $height = isset($metadata['height']) ? $metadata['height'] : 0;
+                    } else {
+                        $target_url = isset($external_urls['large']) ? $external_urls['large'] : reset($external_urls);
+                        // If falling back, we might not have correct dimensions, but try 'large'
+                        if (isset($metadata['sizes']['large'])) {
+                            $width = $metadata['sizes']['large']['width'];
+                            $height = $metadata['sizes']['large']['height'];
+                        }
+                    }
+                }
             }
-
             if ($target_url) {
-                // Return [url, width, height, is_intermediate]
-                // Since we don't have dimensions, we return 0, 0
-                return array($target_url, 0, 0, false);
+                return array($target_url, $width, $height, $size !== 'full');
             }
         }
         return $image;
