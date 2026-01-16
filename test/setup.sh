@@ -16,6 +16,20 @@ docker compose exec -T wordpress sh -c 'echo "SetEnvIf Authorization \"(.*)\" HT
 # Activate plugin
 docker compose run --rm cli wp plugin activate wp-external-media
 
+# Install WooCommerce (needed for functionality testing)
+echo "Installing WooCommerce..."
+docker compose run --rm --user root cli wp plugin install woocommerce --activate --allow-root
+
+# Fix Uploads Directory Permissions for Test Environment
+echo "Fixing uploads directory permissions..."
+docker compose exec -u root wordpress sh -c "mkdir -p /var/www/html/wp-content/uploads && chown -R www-data:www-data /var/www/html/wp-content/uploads"
+
+# Restart WordPress to ensure new plugins are loaded
+docker compose restart wordpress
+# Wait for it to be ready again
+echo "Waiting for WordPress to restart..."
+sleep 10
+
 # Create Application Password
 echo "Creating Application Password..."
 APP_PASSWORD=$(docker compose run --rm cli wp user application-password create admin "Test API Access" --porcelain)

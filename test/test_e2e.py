@@ -116,5 +116,44 @@ class TestWPExternalMedia(unittest.TestCase):
         print(f"Retrieved {len(sizes)} image sizes.")
 
 
+    def test_import_products(self):
+        """
+        Verify that we can import products via the new endpoint.
+        Uses a public endpoint or admin auth if needed.
+        The implementation checks for 'edit_products' capability, so we must be authenticated.
+        """
+        url = f"{self.base_url}?rest_route=/external-media/v1/import-products"
+        print(f"Testing Product Import at {url}...")
+
+        # Minimal valid WooCommerce CSV content
+        # Check WC CSV docs: needs at least Name and Type? Or just Name?
+        # Use headers provided by User that are known to work
+        csv_content = """sku,name,description,short_description,regular_price,categories,images,stock,manage_stock,stock_status,crosssell_ids,upsell_ids
+woo-import-test-1,Test Product 1,Long Desc,Short Desc,10,,,10,0,instock,,
+woo-import-test-2,Test Product 2,Long Desc,Short Desc,20,,,20,0,instock,,
+"""
+        
+        # We must be authenticated (admin usually has edit_products)
+        # Try sending raw body with text/csv
+        headers = self.session.headers.copy()
+        headers['Content-Type'] = 'text/csv'
+        headers['Content-Disposition'] = 'attachment; filename="import.csv"'
+            
+        response = self.session.post(url, data=csv_content, headers=headers)
+        
+        if response.status_code != 200:
+             # It might fail if WC is not active or other issues
+             self.fail(f"Product import failed: {response.text}")
+        
+        result = response.json()
+        print(f"Import Result: {result}")
+        
+        self.assertIsInstance(result, dict)
+        # Check created OR updated (since we do dual run)
+        created = result.get('created', 0)
+        updated = result.get('updated', 0)
+        self.assertGreater(created + updated, 0, "Should have imported (created or updated) at least one product")
+
+
 if __name__ == '__main__':
     run_tests()

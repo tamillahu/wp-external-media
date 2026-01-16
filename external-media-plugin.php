@@ -20,6 +20,8 @@ define('EXTERNAL_MEDIA_PLUGIN_URL', plugin_dir_url(__FILE__));
 require_once EXTERNAL_MEDIA_PLUGIN_DIR . 'includes/class-api-handler.php';
 require_once EXTERNAL_MEDIA_PLUGIN_DIR . 'includes/class-media-handler.php';
 
+require_once EXTERNAL_MEDIA_PLUGIN_DIR . 'includes/class-product-import-handler.php';
+
 // Initialize the plugin
 function external_media_init()
 {
@@ -28,5 +30,8 @@ function external_media_init()
 
     $media_handler = new External_Media_Handler();
     $media_handler->init();
+
+    $product_import_handler = new Product_Import_Handler();
+    $product_import_handler->init();
 }
 add_action('plugins_loaded', 'external_media_init');
