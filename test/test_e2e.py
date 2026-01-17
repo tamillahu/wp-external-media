@@ -155,5 +155,45 @@ woo-import-test-2,Test Product 2,Long Desc,Short Desc,20,,,20,0,instock,,
         self.assertGreater(created + updated, 0, "Should have imported (created or updated) at least one product")
 
 
+    def test_import_products_multipart(self):
+        """Verify that we can import products via the new endpoint using multipart/form-data (like Ansible)."""
+        print(f"Testing Product Import (Multipart) at {self.base_url}?rest_route=/external-media/v1/import-products...")
+        
+        url = f"{self.base_url}?rest_route=/external-media/v1/import-products"
+        
+        # Use unique SKUs to ensure we are testing fresh creation/updates without interference
+        csv_content = (
+            "sku,name,description,short_description,regular_price,categories,images,stock,manage_stock,stock_status,crosssell_ids,upsell_ids\n"
+            "woo-multipart-UNIQUE-1,Multipart Product 1,Long Description,Short Description,19.99,,,10,1,instock,,\n"
+            "woo-multipart-UNIQUE-2,Multipart Product 2,Long Description,Short Description,29.99,,,0,instock,,"
+        )
+        
+        files = {
+            'file': ('products.csv', csv_content, 'text/csv')
+        }
+        
+        # Note: requests handles multipart headers automatically when 'files' is used.
+        # We explicitly rely on Admin Auth set in setUp()
+        
+        # Requests session 'Content-Type' header triggers JSON parsing error in WP. 
+        # We use a fresh request to avoid session header pollution completely.
+        response = requests.post(
+            url, 
+            files=files, 
+            auth=(self.auth_user, self.auth_pass)
+        )
+        
+        if response.status_code != 200:
+             self.fail(f"Product import (multipart) failed: {response.text}")
+        
+        result = response.json()
+        print(f"Import Result (Multipart): {result}")
+        
+        self.assertIsInstance(result, dict)
+        created = result.get('created', 0)
+        updated = result.get('updated', 0)
+        self.assertGreater(created + updated, 0, "Should have imported (created or updated) at least one product via multipart")
+
+
 if __name__ == '__main__':
     run_tests()

@@ -35,7 +35,7 @@ The plugin uses standard **WordPress Application Passwords** (Basic Auth) for AP
 - `Content-Type: application/json`
 - `Authorization: Basic <base64_encoded_credentials>` (User:Password)
 
-> **Note**: The authenticated user must have `manage_options` capability (Administrator).
+> **Note**: The authenticated user must have `upload_files` capability (Author/Editor or higher).
 
 ### 4. JSON Data Structure
 
@@ -148,5 +148,57 @@ Returns a JSON object where keys are image size names (e.g., `thumbnail`, `mediu
     "height": 1024,
     "crop": false
   }
+}
+```
+
+### 7. Import WooCommerce Products (CSV)
+
+**Endpoint:** `POST /wp-json/external-media/v1/import-products`
+
+This endpoint allows you to import and synchronize WooCommerce products using a CSV file. It performs a **dual-run import**:
+1.  **Create:** Adds new products from the CSV.
+2.  **Update:** Updates existing products (and newly created ones) with the latest data from the CSV.
+
+**Headers:**
+-   `Authorization: Basic <base64_encoded_credentials>`
+-   `Content-Type: multipart/form-data`
+
+> **Note**: The authenticated user must have `manage_woocommerce` capability (Shop Manager or Administrator).
+
+**Parameters:**
+-   `file`: The CSV file to import.
+
+**Supported CSV Headers:**
+The importer expects a standard CSV format. Key headers include:
+-   `sku` (Required for syncing)
+-   `name`
+-   `description`
+-   `short_description`
+-   `regular_price`
+-   `stock` (Mapped to `stock_quantity`)
+-   `manage_stock` (1 or 0)
+-   `stock_status` (`instock`, `outofstock`)
+-   `categories` (Comma-separated IDs, e.g., `12,15`)
+-   `images` (Comma-separated URLs)
+-   `crosssell_ids`
+-   `upsell_ids`
+
+**Curl Example:**
+
+```bash
+curl -X POST https://your-site.com/wp-json/external-media/v1/import-products \
+  -H "Authorization: Basic <base64_token>" \
+  -F "file=@/path/to/products.csv"
+```
+
+**Response Structure:**
+
+```json
+{
+  "created": 5,
+  "updated": 12,
+  "failed": 0,
+  "skipped": 0,
+  "errors": []
 }
 ```

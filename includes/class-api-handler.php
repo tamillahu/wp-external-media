@@ -24,7 +24,7 @@ class External_Media_API_Handler
                 'methods' => 'POST',
                 'callback' => array($this, 'handle_import'),
                 'permission_callback' => function () {
-                    return current_user_can('manage_options');
+                    return current_user_can('upload_files');
                 },
             )
         );
