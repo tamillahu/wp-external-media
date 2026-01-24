@@ -45,9 +45,17 @@ class External_Media_API_Handler
         // Attempt to extend timeout
         @set_time_limit(0);
 
-        $params = $request->get_json_params();
+        if ($request->get_param('local_file')) {
+            $data = $this->read_local_file($request->get_param('local_file'));
+        } else {
+            $data = $request->get_json_params();
+        }
 
-        if (!is_array($params)) {
+        if (is_wp_error($data)) {
+            return $data;
+        }
+
+        if (!is_array($data)) {
             return new WP_Error('invalid_data', 'Invalid JSON data provided.', array('status' => 400));
         }
 
@@ -58,7 +66,7 @@ class External_Media_API_Handler
         register_shutdown_function(array($this, 'disable_maintenance_mode'));
 
         try {
-            $results = $this->process_import($params);
+            $results = $this->process_import($data);
         } catch (Exception $e) {
             // Maintenance mode will be disabled by shutdown function
             return new WP_Error('import_failed', $e->getMessage(), array('status' => 500));
@@ -66,6 +74,11 @@ class External_Media_API_Handler
 
         // Explicit cleanup
         $this->disable_maintenance_mode();
+
+        // Cleanup local file if used
+        if ($request->get_param('local_file')) {
+            $this->cleanup_local_file($request->get_param('local_file'));
+        }
 
         return rest_ensure_response(array(
             'success' => true,
@@ -248,5 +261,56 @@ class External_Media_API_Handler
         }
 
         return $sizes;
+    }
+
+
+    private function read_local_file($filename)
+    {
+        $file_path = $this->get_import_file_path($filename);
+        if (is_wp_error($file_path)) {
+            return $file_path;
+        }
+
+        if (!file_exists($file_path)) {
+            return new WP_Error('file_not_found', "Import file '$filename' not found in import directory.", array('status' => 404));
+        }
+
+        $content = file_get_contents($file_path);
+        if ($content === false) {
+            return new WP_Error('read_error', "Could not read file '$filename'.", array('status' => 500));
+        }
+
+        $json = json_decode($content, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            return new WP_Error('json_error', 'Failed to decode JSON from file: ' . json_last_error_msg(), array('status' => 400));
+        }
+
+        return $json;
+    }
+
+    private function cleanup_local_file($filename)
+    {
+        $file_path = $this->get_import_file_path($filename);
+        if (!is_wp_error($file_path) && file_exists($file_path)) {
+            @unlink($file_path);
+        }
+    }
+
+    private function get_import_file_path($filename)
+    {
+        // Security: Ensure straight filename, no paths
+        if (basename($filename) !== $filename || strpos($filename, '..') !== false || strpos($filename, '/') !== false || strpos($filename, '\\') !== false) {
+            return new WP_Error('invalid_filename', 'Invalid filename provided. Must be a simple filename with no path components.', array('status' => 400));
+        }
+
+        $upload_dir = wp_upload_dir();
+        $import_dir = $upload_dir['basedir'] . '/external-media-imports';
+
+        // Ensure directory exists (optional, but good for setup)
+        if (!file_exists($import_dir)) {
+            wp_mkdir_p($import_dir);
+        }
+
+        return $import_dir . '/' . $filename;
     }
 }

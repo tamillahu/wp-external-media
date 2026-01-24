@@ -55,7 +55,11 @@ class TestWPExternalMedia(unittest.TestCase):
         
         self.assertIn(external_id, results.get('created', []), "ID should be in 'created'")
         self.assertEqual(len(results.get('updated', [])), 0)
-        self.assertEqual(len(results.get('deleted', [])), 0)
+        self.assertIn(external_id, results.get('created', []), "ID should be in 'created'")
+        self.assertEqual(len(results.get('updated', [])), 0)
+        # self.assertEqual(len(results.get('deleted', [])), 0) 
+        # previous tests might leave data that gets deleted here, so just check our ID is safe
+        self.assertNotIn(external_id, results.get('deleted', []), "New ID should not be deleted immediately")
 
         # --- Step 2: Unchanged (Idempotency) ---
         print(f"Step 2: Re-importing {external_id} (Unchanged)...")
@@ -195,5 +199,69 @@ woo-import-test-2,Test Product 2,Long Desc,Short Desc,20,,,20,0,instock,,
         self.assertGreater(created + updated, 0, "Should have imported (created or updated) at least one product via multipart")
 
 
+    def test_local_file_import(self):
+        """
+        Verify 'Jailed Drop Zone' import.
+        1. Write a JSON file to the container's import directory.
+        2. Call API with 'local_file' param.
+        3. Verify success and file deletion.
+        """
+        import subprocess
+        import json
+        
+        # Ensure we are in the correct directory for docker compose to work
+        # The test runner likely runs from test root? or project root?
+        # run_test.sh cd's to test dir.
+        # But let's find docker-compose.yml relative to this file
+        test_dir = os.path.dirname(os.path.abspath(__file__))
+        
+        external_id = "local-import-test"
+        filename = "test_local.json"
+        
+        # 1. Prepare JSON content
+        payload = [{
+            "id": external_id,
+            "title": "Local Import Title",
+            "urls": { "full": "https://example.com/local.jpg" }
+        }]
+        
+        # 2. Copy to container via stdin to avoid local file temp issues
+        target_dir = "/var/www/html/wp-content/uploads/external-media-imports"
+        target_path = f"{target_dir}/{filename}"
+
+        # Create dir
+        subprocess.check_call(["docker", "compose", "exec", "-T", "wordpress", "mkdir", "-p", target_dir], cwd=test_dir)
+        
+        # Write file
+        cat_cmd = ["docker", "compose", "exec", "-T", "wordpress", "sh", "-c", f"cat > {target_path}"]
+        
+        payload_bytes = json.dumps(payload).encode('utf-8')
+        process = subprocess.Popen(cat_cmd, stdin=subprocess.PIPE, cwd=test_dir)
+        process.communicate(input=payload_bytes)
+        if process.returncode != 0:
+            self.fail("Failed to write json file to container")
+            
+        # Fix permissions so www-data can read/delete
+        subprocess.check_call(["docker", "compose", "exec", "-T", "wordpress", "chown", "www-data:www-data", target_path], cwd=test_dir)
+
+        # 3. Call API
+        print(f"Step Local: Importing from {filename}...")
+        response = self.session.post(self.api_url, json={"local_file": filename})
+        self.assertEqual(response.status_code, 200, f"Local import failed: {response.text}")
+        
+        results = response.json().get('results', {})
+        self.assertIn(external_id, results.get('created', []), "ID should be imported")
+        
+        # 4. Verify File Cleanup
+        # Check if file exists inside container
+        check_cmd = ["docker", "compose", "exec", "-T", "wordpress", "ls", target_path]
+        
+        # expect failure (non-zero exit code) because file should be gone
+        try:
+             subprocess.check_call(check_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, cwd=test_dir)
+             self.fail(f"File {target_path} should have been deleted after import")
+        except subprocess.CalledProcessError:
+             # Success - file not found
+             pass
 if __name__ == '__main__':
     run_tests()

@@ -109,7 +109,35 @@ The API returns a JSON object summarizing the synchronization results:
 | `title` | String | No | The title of the attachment in WordPress. Defaults to "External Media [ID]". |
 | `mime_type` | String | No | MIME type of the file. Defaults to `application/octet-stream`. |
 | `metadata` | Object | No | Standard WordPress attachment metadata (width, height, sizes, etc.). Stored in `_wp_attachment_metadata` to allow plugins to recognize available sizes. |
+| `metadata` | Object | No | Standard WordPress attachment metadata (width, height, sizes, etc.). Stored in `_wp_attachment_metadata` to allow plugins to recognize available sizes. |
 
+### 5. Large File Imports (Local Drop Zone)
+
+For very large libraries that exceed the server's HTTP request body limit (Status 413), you can use the **Local Drop Zone** method.
+
+1.  **Upload JSON**: securely upload your JSON import file to the designated import directory on the server:
+    -   Path: `wp-content/uploads/external-media-imports/`
+2.  **Trigger Import**: Call the API with the `local_file` parameter (filename only).
+
+**Example Payload:**
+
+```json
+{
+  "local_file": "my-large-library.json"
+}
+```
+
+The plugin will read the file from the import directory, process it, and **automatically delete it** upon completion.
+
+#### Security Recommendation
+
+To prevent unauthorized access to your import files, create a `.htaccess` file in the import directory (`wp-content/uploads/external-media-imports/.htaccess`) with the following content:
+
+```apache
+# Deny all direct access to files in this directory
+Order Deny,Allow
+Deny from all
+```
 ### 5. Synchronization Logic
 
 The import process acts as a full synchronization of the external media state:
