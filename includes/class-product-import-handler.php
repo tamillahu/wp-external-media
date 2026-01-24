@@ -203,34 +203,75 @@ class Product_Import_Handler
             return new WP_Error('woocommerce_importer_missing', 'WooCommerce CSV Importer class not found.', array('status' => 500));
         }
 
+        $local_file = $request->get_param('local_file');
+        $temp_file = '';
+        $is_local = false;
 
-        // Get file data
-        $files = $request->get_file_params();
-        $csv_content = '';
+        if ($local_file) {
+            $temp_file = $this->get_import_file_path($local_file);
+            $is_local = true;
 
-        if (!empty($files['file'])) {
-            // Multipart: Read content from the uploaded file
-            $csv_content = file_get_contents($files['file']['tmp_name']);
+            if (is_wp_error($temp_file)) {
+                return $temp_file; // Invalid filename
+            }
+
+            if (!file_exists($temp_file)) {
+                return new WP_Error('file_not_found', "Import file '$local_file' not found in import directory.", array('status' => 404));
+            }
+
         } else {
-            // Raw Body
-            $csv_content = $request->get_body();
-        }
+            // Get file data
+            $files = $request->get_file_params();
+            $csv_content = '';
 
-        // Create temp file using the unified helper
-        $temp_file = $this->create_temp_csv_file($csv_content);
+            if (!empty($files['file'])) {
+                // Multipart: Read content from the uploaded file
+                $csv_content = file_get_contents($files['file']['tmp_name']);
+            } else {
+                // Raw Body
+                $csv_content = $request->get_body();
+            }
 
-        if (is_wp_error($temp_file)) {
-            return $temp_file;
+            // Create temp file using the unified helper
+            $temp_file = $this->create_temp_csv_file($csv_content);
+
+            if (is_wp_error($temp_file)) {
+                return $temp_file;
+            }
         }
 
         // Run the import
         $results = $this->do_import_products_csv($temp_file);
 
-        // Clean up temp file
+        // Clean up
         if (file_exists($temp_file)) {
-            unlink($temp_file);
+            // If it was a temp file, we always delete.
+            // If it was a local file import, we ALSO delete (Drop Zone behavior)
+            // unless we want to keep it? The requirement for media was to delete.
+            // User said "implement the same local file approach".
+            // Media import deletes it. So we delete it here too.
+            @unlink($temp_file);
         }
 
         return $results;
+    }
+
+
+    private function get_import_file_path($filename)
+    {
+        // Security: Ensure straight filename, no paths
+        if (basename($filename) !== $filename || strpos($filename, '..') !== false || strpos($filename, '/') !== false || strpos($filename, '\\') !== false) {
+            return new WP_Error('invalid_filename', 'Invalid filename provided. Must be a simple filename with no path components.', array('status' => 400));
+        }
+
+        $upload_dir = wp_upload_dir();
+        $import_dir = $upload_dir['basedir'] . '/external-media-imports';
+
+        // Ensure directory exists (optional)
+        if (!file_exists($import_dir)) {
+            wp_mkdir_p($import_dir);
+        }
+
+        return $import_dir . '/' . $filename;
     }
 }

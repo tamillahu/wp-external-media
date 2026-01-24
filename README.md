@@ -194,7 +194,18 @@ This endpoint allows you to import and synchronize WooCommerce products using a 
 > **Note**: The authenticated user must have `manage_woocommerce` capability (Shop Manager or Administrator).
 
 **Parameters:**
--   `file`: The CSV file to import.
+-   `file`: The CSV file to import (Multipart).
+-   `local_file`: (Optional) Filename of a CSV file already uploaded to `wp-content/uploads/external-media-imports/` (JSON Body). This is useful for large files to avoid HTTP 413 errors.
+
+**Large File Example:**
+
+Instead of uploading the file via POST, upload it to the server's drop zone and call:
+
+```json
+{
+  "local_file": "my-large-products.csv"
+}
+```
 
 **Supported CSV Headers:**
 The importer expects a standard CSV format. Key headers include:

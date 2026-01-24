@@ -2,7 +2,7 @@
 /**
  * Plugin Name: External Media for WordPress
  * Description: Import and handle external media files via API, storing only metadata and serving from source URLs.
- * Version: 0.2.0
+ * Version: 0.3.0
  * Author: Balázs Grill & Antigravity
  * License: GPLv3
  * License URI: https://www.gnu.org/licenses/gpl-3.0.html

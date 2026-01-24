@@ -263,5 +263,65 @@ woo-import-test-2,Test Product 2,Long Desc,Short Desc,20,,,20,0,instock,,
         except subprocess.CalledProcessError:
              # Success - file not found
              pass
+
+    def test_local_product_import(self):
+        """
+        Verify 'Jailed Drop Zone' import for PRODUCTS.
+        1. Write a CSV file to the container's import directory.
+        2. Call Product Import API with 'local_file' param.
+        3. Verify success and file deletion.
+        """
+        import subprocess
+        import json
+        
+        test_dir = os.path.dirname(os.path.abspath(__file__))
+        filename = "products_local.csv"
+        
+        # 1. Prepare CSV content
+        csv_content = (
+            "sku,name,regular_price,stock\n"
+            "local-prod-1,Local Product 1,50,100\n"
+        )
+        
+        # 2. Copy to container
+        target_dir = "/var/www/html/wp-content/uploads/external-media-imports"
+        target_path = f"{target_dir}/{filename}"
+
+        # Create dir (idempotent)
+        subprocess.check_call(["docker", "compose", "exec", "-T", "wordpress", "mkdir", "-p", target_dir], cwd=test_dir)
+        
+        # Write file
+        cat_cmd = ["docker", "compose", "exec", "-T", "wordpress", "sh", "-c", f"cat > {target_path}"]
+        
+        process = subprocess.Popen(cat_cmd, stdin=subprocess.PIPE, cwd=test_dir)
+        process.communicate(input=csv_content.encode('utf-8'))
+        if process.returncode != 0:
+            self.fail("Failed to write csv file to container")
+            
+        # Fix permissions
+        subprocess.check_call(["docker", "compose", "exec", "-T", "wordpress", "chown", "www-data:www-data", target_path], cwd=test_dir)
+
+        # 3. Call API
+        url = f"{self.base_url}?rest_route=/external-media/v1/import-products"
+        print(f"Step Local Product: Importing from {filename}...")
+        
+        # We need to send JSON payload now, not multipart
+        response = self.session.post(url, json={"local_file": filename})
+        self.assertEqual(response.status_code, 200, f"Local product import failed: {response.text}")
+        
+        result = response.json()
+        self.assertIsInstance(result, dict)
+        # Check created/updated
+        created = result.get('created', 0)
+        updated = result.get('updated', 0)
+        self.assertGreater(created + updated, 0, "Should have imported at least one product")
+        
+        # 4. Verify File Cleanup
+        check_cmd = ["docker", "compose", "exec", "-T", "wordpress", "ls", target_path]
+        try:
+             subprocess.check_call(check_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, cwd=test_dir)
+             self.fail(f"File {target_path} should have been deleted after import")
+        except subprocess.CalledProcessError:
+             pass
 if __name__ == '__main__':
     run_tests()
